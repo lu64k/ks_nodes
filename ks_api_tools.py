@@ -1,9 +1,7 @@
 import tenacity
 import requests
-import http
 from http import HTTPStatus
 import json
-import re
 import base64
 #from fastapi import HTTPException
 
