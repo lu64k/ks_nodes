@@ -727,8 +727,7 @@ class KS_JsonToString:
     def to_string(self, data):
         """
         1. 将 Python 对象序列化为带缩进的 JSON 文本；
-        2. 对其中的转义序列做 unicode_escape 解码，
-           把 \n 变成换行，把 \" 变成 " 等；
+        2. 对其中的转义序列（如 \n, \"）解码为实际字符，保留中文字符；
         3. 如果文本最外层有多余的引号，则去除。
         """
         # 步骤 1: 序列化
@@ -737,9 +736,12 @@ class KS_JsonToString:
         except Exception:
             raw = repr(data)
 
-        # 步骤 2: 解码转义
+        # 步骤 2: 解码转义序列，保留中文
         try:
-            text = raw.encode('utf-8').decode('unicode_escape')
+            # 直接用 str.encode().decode('unicode_escape') 会破坏中文
+            # 改用 json.loads 重新解析并序列化，确保转义正确处理
+            parsed = json.loads(raw)  # 解析回Python对象
+            text = json.dumps(parsed, ensure_ascii=False, indent=2)  # 重新序列化
         except Exception:
             text = raw
 

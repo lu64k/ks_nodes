@@ -34,6 +34,12 @@ def buildMetadata(image_path):
     # only for png files
     if isinstance(img, PngImageFile):
         metadataFromImg = img.info
+        for key, value in metadataFromImg.items():
+            if isinstance(value, bytes):
+                try:
+                    metadataFromImg[key] = value.decode('utf-8', errors='replace')
+                except Exception as e:
+                    print(f"Failed to decode {key}: {e}")
 
         # for all metadataFromImg convert to string (but not for workflow and prompt!)
         for k, v in metadataFromImg.items():
