@@ -1,2 +1,8 @@
-transformers>=4.43.3
-#nltk>=3.8.0
+tenacity
+requests
+pillow
+piexif
+torch
+numpy
+opencv-python
+scikit-learn

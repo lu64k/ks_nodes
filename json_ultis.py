@@ -41,6 +41,7 @@ def buildMetadata(image_path):
             if k == "workflow":
                 try:
                     metadata["workflow"] = json.loads(metadataFromImg["workflow"])
+                    workflow = metadata["workflow"]
                 except Exception as e:
                     print(f"Error parsing metadataFromImg 'workflow': {e}")
 
@@ -48,10 +49,9 @@ def buildMetadata(image_path):
             elif k == "prompt":
                 try:
                     metadata["prompt"] = json.loads(metadataFromImg["prompt"])
-
-                    # extract prompt to use on metadataFromImg
+                    
                     prompt = metadata["prompt"]
-                    workflow = metadata["workflow"]
+                    
                 except Exception as e:
                     print(f"Error parsing metadataFromImg 'prompt': {e}")
 
@@ -153,7 +153,9 @@ def _parse_json_maybe_jsonl(s: str) -> list[dict]:
     # JSON 数组
     if s.startswith("["):
         try:
-            data = json.loads(s, encoding='utf-8')
+            if isinstance(s, (bytes, bytearray)):
+                s = s.decode('utf-8', errors='replace')
+            data = json.loads(s)
             if not isinstance(data, list):
                 raise Exception("输入的字符串不是 JSON 数组")
             return data
@@ -163,7 +165,9 @@ def _parse_json_maybe_jsonl(s: str) -> list[dict]:
     # 单个 JSON 对象
     if s.startswith("{"):
         try:
-            one = json.loads(s, encoding='utf-8')
+            if isinstance(s, (bytes, bytearray)):
+                s = s.decode('utf-8', errors='replace')
+            one = json.loads(s)
             if not isinstance(one, dict):
                 raise Exception("输入的 JSON 不是对象")
             return [one]
@@ -177,7 +181,9 @@ def _parse_json_maybe_jsonl(s: str) -> list[dict]:
         if not line:
             continue
         try:
-            obj = json.loads(line, encoding='utf-8')
+            if isinstance(s, (bytes, bytearray)):
+                s = s.decode('utf-8', errors='replace')
+            obj = json.loads(s)
             if not isinstance(obj, dict):
                 raise Exception(f"JSONL 第 {i} 行不是合法 JSON 对象")
             out.append(obj)

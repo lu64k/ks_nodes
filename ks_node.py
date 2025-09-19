@@ -150,7 +150,10 @@ class KS_Load_Images_From_Folder:
         file_names_str = ", ".join(file_names)
 
         if len(images) == 1:
-            return (images[0], masks[0], 1, str(image_path_list), file_names_str)
+            image_dir_raw = str(image_path_list[0])
+            image_dir = os.fspath(image_dir_raw).strip().strip('\'"')      # 去首尾单双引号
+            image_dir = os.path.normpath(image_dir)                     # 规范化为系统路径
+            return (images[0], masks[0], 1, image_dir, file_names_str)
 
         elif len(images) > 1:
             image1 = images[0]

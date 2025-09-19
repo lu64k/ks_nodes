@@ -23,7 +23,6 @@ NODE_CLASS_MAPPINGS = {
     "KS JsonKeyExtractor":KS_JsonKeyExtractor,
     "KS_merge_json_node":KS_merge_json_node,
     "KS_make_json_node":KS_make_json_node,
-    "KS_qwen_image_api": KS_Qwen_image_hypr_API_Node,
     "KS_any_payload_image": KS_any_payload_image_API_Node,
     "KS JsonlFolderMatchReader": KS_JsonlFolderMatchReader,
     "KS_image_metadata_node": KS_image_metadata_node
