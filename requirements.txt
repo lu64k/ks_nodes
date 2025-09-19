@@ -1,0 +1,2 @@
+transformers>=4.43.3
+#nltk>=3.8.0
