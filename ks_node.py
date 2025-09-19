@@ -3,9 +3,6 @@ import os
 from sklearn.cluster import MiniBatchKMeans
 import numpy as np  # 用于处理 NumPy 数组
 import cv2
-import kornia
-import torch.nn.functional as F
-from sklearn.cluster import KMeans
 from PIL import Image, ImageOps
 from comfy.utils import ProgressBar, common_upscale
 
