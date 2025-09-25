@@ -3,6 +3,7 @@ import random
 import time
 import os
 import piexif
+from typing import Any, Iterable
 from PIL import Image
 from .json_ultis import _parse_json_maybe_jsonl, parse_data, buildMetadata, process_exif_data
 
@@ -706,7 +707,7 @@ class KS_Json_Count:
             count = 0
         print (count)
         return (count,)
-    
+
 class KS_JsonToString:
     CATEGORY = "ksjson_nodes/tools"
 
@@ -830,7 +831,7 @@ class KS_JsonKeyReplacer:
         # 将修改后的 JSON 对象转回字符串
         modified_json = json.dumps(json_obj, ensure_ascii=False)
         return (modified_json,)
-    
+
 class KS_JsonKeyExtractor:
     def __init__(self):
         pass
@@ -1162,7 +1163,7 @@ class KS_make_json_node:
 
         print(f"生成的JSON: {json_outputs}")
         return json_outputs
-    
+
 class KS_merge_json_node:
 
     def __init__(self):
@@ -1253,3 +1254,125 @@ class KS_image_metadata_node:
                 workflow = {}
 
         return prompt, metadata, workflow
+
+
+class KS_Save_JSON:
+    """
+    将 json_str 保存为 jsonl / json / txt 文件的 ComfyUI 节点。
+    - JSONL: list -> 每元素一行；dict -> 每个 (k, v) 一行，写入 {"key": k, "value": v}
+    - JSON : 整体写入，可选择是否 pretty（缩进）
+    - TXT  : 原样写入字符串
+    """
+    CATEGORY = "Sikai_nodes/tools"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "file_path": ("STRING", {"default": "./output.jsonl", "multiline": False}),
+                "json_str": ("STRING", {"default": "{}", "multiline": True}),
+                "save_mode": (["overwrite", "append", "new only"],),
+                "save_format": (["jsonl", "json", "txt"],),
+                "pretty": ("BOOLEAN", {"default": True}),  # 仅对 JSON 格式生效
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("status",)
+    FUNCTION = "save_data"
+
+    # ---- 内部工具 ----
+    def _ensure_parent_dir(self, path: str):
+        parent = os.path.dirname(os.path.abspath(path))
+        if parent and not os.path.exists(parent):
+            os.makedirs(parent, exist_ok=True)
+
+    def _parse_json_if_needed(self, json_str: str, save_format: str) -> Any:
+        """
+        txt 格式不解析，json/jsonl 需要解析为 Python 对象
+        """
+        if save_format == "txt":
+            return json_str
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON content: {e}")
+
+    def _open_mode(self, save_mode: str) -> str:
+        if save_mode == "overwrite":
+            return "w"
+        elif save_mode == "append":
+            return "a"
+        elif save_mode == "new only":
+            # 调用方会先判断是否存在，这里按写新文件方式打开
+            return "x"
+        else:
+            # 兜底，用覆盖
+            return "w"
+
+    def _jsonl_iter_lines(self, data: Any) -> Iterable[str]:
+        """
+        将 list/dict/标量 转为逐行 JSON 文本（不带换行符，调用处追加 '\n'）
+        - list: 每个元素一行
+        - dict: 每个键值对一行，格式 {"key": k, "value": v}
+        - 其他: 直接一行
+        """
+        if isinstance(data, list):
+            for item in data:
+                yield json.dumps(item, ensure_ascii=False)
+        elif isinstance(data, dict):
+            for k, v in data.items():
+                yield json.dumps({"key": k, "value": v}, ensure_ascii=False)
+        else:
+            # 标量或其他结构，整体一行
+            yield json.dumps(data, ensure_ascii=False)
+
+    # ---- 主逻辑 ----
+    def save_data(self, file_path: str, json_str: str, save_mode: str, save_format: str, pretty: bool):
+        """
+        将 json_str 保存为 jsonl / json / txt
+        """
+        try:
+            # 解析 or 直写
+            payload = self._parse_json_if_needed(json_str, save_format)
+
+            # new only 检查
+            if save_mode == "new only" and os.path.exists(file_path):
+                return (f"File '{file_path}' already exists. No changes made.",)
+
+            self._ensure_parent_dir(file_path)
+
+            # 写入
+            if save_format == "txt":
+                # 原样文本
+                mode = self._open_mode(save_mode)
+                with open(file_path, mode, encoding="utf-8") as f:
+                    f.write(payload)
+                return (f"TXT saved to '{file_path}' with mode '{save_mode}'.",)
+
+            elif save_format == "json":
+                mode = self._open_mode(save_mode)
+                with open(file_path, mode, encoding="utf-8") as f:
+                    if pretty:
+                        json.dump(payload, f, ensure_ascii=False, indent=2)
+                        f.write("\n")  # 末尾换行更友好
+                    else:
+                        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+                return (f"JSON saved to '{file_path}' with mode '{save_mode}', pretty={pretty}.",)
+
+            elif save_format == "jsonl":
+                # 每条记录写一行，末尾加 '\n'
+                mode = self._open_mode(save_mode)
+                with open(file_path, mode, encoding="utf-8") as f:
+                    for line in self._jsonl_iter_lines(payload):
+                        f.write(line + "\n")
+                return (f"JSONL saved to '{file_path}' with mode '{save_mode}'.",)
+
+            else:
+                return (f"Unsupported format: {save_format}",)
+
+        except FileExistsError:
+            # 来自 new only 模式的 'x' 打开
+            return (f"File '{file_path}' already exists. No changes made.",)
+        except Exception as e:
+            return (f"Error: {e}",)
