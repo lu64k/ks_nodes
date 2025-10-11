@@ -127,6 +127,27 @@ def process_exif_data(exif_data):
     metadata.update(exif_data)
     return metadata
 
+def read_jsonl_to_list_str(jsonl_path: str):
+    if not os.path.exists(jsonl_path) or not os.path.isfile(jsonl_path):
+        raise Exception(f"JSONL file {jsonl_path} does not exist")
+    if not jsonl_path.endswith(".jsonl"):
+        raise Exception(f"File {jsonl_path} is not a .jsonl file")
+
+    items = []
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                raise Exception(f"Invalid JSON at line {i} in {jsonl_path}")
+            if not isinstance(obj, dict):
+                raise Exception(f"Line {i} is not a JSON object")
+            items.append(obj)
+    return items
+
 def _parse_json_maybe_jsonl(s: str) -> list[dict]:
     """
     支持三种输入：
@@ -138,29 +159,30 @@ def _parse_json_maybe_jsonl(s: str) -> list[dict]:
     支持中文字符的编码格式（默认 UTF-8）。
     """
     # 确保输入是字符串并去除首尾空白
+    if not isinstance(s, str):
+        raise TypeError("输入必须是字符串类型")
+    
     s = (s or "").strip()
     if not s:
         return []
 
-    # 判断是否是文件路径
-    if os.path.isfile(s):
+    # 1. 判断是否是文件路径
+    if os.path.exists(s) and os.path.isfile(s):
+        if not s.lower().endswith(('.txt', '.json', '.jsonl')):
+            raise ValueError(f"文件 {s} 扩展名不支持，仅支持 .txt, .json, .jsonl")
         try:
-            # 支持的扩展名
-            if not s.lower().endswith(('.txt', '.json', '.jsonl')):
-                raise Exception(f"文件 {s} 扩展名不支持，仅支持 .txt, .json, .jsonl")
-            
-            # 读取文件内容
             with open(s, 'r', encoding='utf-8') as f:
                 s = f.read().strip()
         except Exception as e:
-            raise Exception(f"读取文件 {s} 失败: {str(e)}")
+            raise IOError(f"读取文件 {s} 失败: {str(e)}")
+        
+    # 统一处理编码
+    if isinstance(s, (bytes, bytearray)):
+        s = s.decode('utf-8', errors='replace')
 
-    # 以下是原有的解析逻辑
     # JSON 数组
     if s.startswith("["):
         try:
-            if isinstance(s, (bytes, bytearray)):
-                s = s.decode('utf-8', errors='replace')
             data = json.loads(s)
             if not isinstance(data, list):
                 raise Exception("输入的字符串不是 JSON 数组")
@@ -168,35 +190,32 @@ def _parse_json_maybe_jsonl(s: str) -> list[dict]:
         except json.JSONDecodeError as e:
             raise Exception(f"解析 JSON 数组失败: {str(e)}")
 
-    # 单个 JSON 对象
-    if s.startswith("{"):
+    # 3. 尝试作为 JSONL 解析
+    if "\n" in s:
         try:
-            if isinstance(s, (bytes, bytearray)):
-                s = s.decode('utf-8', errors='replace')
-            one = json.loads(s)
-            if not isinstance(one, dict):
-                raise Exception("输入的 JSON 不是对象")
-            return [one]
-        except json.JSONDecodeError as e:
-            raise Exception(f"解析 JSON 对象失败: {str(e)}")
+            out = []
+            for i, line in enumerate(s.splitlines(), 1):
+                line = line.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                if not isinstance(obj, dict):
+                    raise ValueError(f"第 {i} 行不是合法 JSON 对象")
+                out.append(obj)
+            if out:  # 如果成功解析出至少一个对象
+                return out
+        except json.JSONDecodeError:
+            pass  # JSONL 解析失败，继续尝试作为单个 JSON 对象解析
 
-    # JSONL
-    out = []
-    for i, line in enumerate(s.splitlines(), 1):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            if isinstance(s, (bytes, bytearray)):
-                s = s.decode('utf-8', errors='replace')
-            obj = json.loads(s)
-            if not isinstance(obj, dict):
-                raise Exception(f"JSONL 第 {i} 行不是合法 JSON 对象")
-            out.append(obj)
-        except json.JSONDecodeError as e:
-            raise Exception(f"JSONL 第 {i} 行解析失败: {str(e)}")
-    return out
-
+    # 4. 尝试作为单个 JSON 对象解析
+    try:
+        obj = json.loads(s)
+        if not isinstance(obj, dict):
+            raise ValueError("输入的 JSON 不是对象")
+        return [obj]
+    except json.JSONDecodeError as e:
+        raise ValueError(f"解析 JSON 对象失败: {str(e)}")
+    
 def parse_data(data, target_object):
     """
     根据 target_object 自动处理 JSON 数据：

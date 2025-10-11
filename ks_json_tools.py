@@ -119,10 +119,22 @@ class KS_Json_Array_Constrains_Filter:
             data = _parse_json_maybe_jsonl(json_str)
         except Exception as e:
             return (f"Error: JSON parsing failed with error: {str(e)}",)
-        
-        include_list = [kw.strip() for kw in include_keywords.split(",") if kw.strip()] if include_keywords else []
-        exclude_list = [kw.strip() for kw in exclude_keywords.split(",") if kw.strip()] if exclude_keywords else []
 
+        # ✅ 使用 JSON 数组格式解析
+        try:
+            include_list = json.loads(include_keywords) if include_keywords.strip() else []
+            if not isinstance(include_list, list):
+                return ("Error: include_keywords must be a JSON array, e.g. [\"a\",\"b\"]",)
+        except Exception as e:
+            return (f"Error: include_keywords parsing failed: {str(e)}",)
+
+        try:
+            exclude_list = json.loads(exclude_keywords) if exclude_keywords.strip() else []
+            if not isinstance(exclude_list, list):
+                return ("Error: exclude_keywords must be a JSON array, e.g. [\"c\"]",)
+        except Exception as e:
+            return (f"Error: exclude_keywords parsing failed: {str(e)}",)
+        
         # 判断是否存在 target_object，并处理
         if target_object in data:
             target_data = data[target_object]
@@ -1089,6 +1101,7 @@ class KS_Json_loader:
     CATEGORY = "ksjson_nodes/tools"
 
     def slice_json_list_str(self, json_list_str: str, start: int, count: int):
+        
         items = _parse_json_maybe_jsonl(json_list_str)  # 也兼容 JSONL 输入
         n = len(items)
         end = start + count
